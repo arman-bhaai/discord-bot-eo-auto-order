@@ -2,12 +2,14 @@ aiohttp==3.7.4.post0
 async-timeout==3.0.1
 asyncio==3.4.3
 attrs==20.3.0
+certifi==2020.12.5
 chardet==4.0.0
 discord.py==1.6.0
-idna==3.1
+idna==2.10
 idna-ssl==1.1.0
 multidict==5.1.0
 python-dotenv==0.16.0
+requests==2.25.1
 selenium==3.141.0
 typing-extensions==3.7.4.3
 urllib3==1.26.4
