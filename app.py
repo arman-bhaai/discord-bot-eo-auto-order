@@ -108,7 +108,7 @@ class ConsoleApp:
                         break
                     else:
                         self.bot_log(self.show_stats(self.start_time, 'Product out of Stock!'))
-                        time.sleep(3)
+                        time.sleep(1)
                 else:
                     self.bot_log('Dynamic Product name does not  match with index...\nExiting Program...')
                     sys.exit()
@@ -117,7 +117,6 @@ class ConsoleApp:
     
     def get_product_db(self, product_brand):
         print('fetching product page...')
-        time.sleep(2)
         url = f'https://eorange.shop/get-search-product?search={product_brand}&page=1&filter=%7B%22category%22:null,%22short_by%22:%22popularity%22,%22seller_by%22:[],%22brand_by%22:[],%22price%22:%7B%22min%22:0,%22max%22:0%7D%7D'
         print(f'status code : {requests.get(url).status_code}')
         api_dict = requests.get(url).json()
@@ -212,7 +211,7 @@ class ConsoleApp:
         frm_zip.clear()
         frm_zip.send_keys(self.zip)
         frm_agree.click()
-        # time.sleep(1)
+        time.sleep(1)
         self.bot_log('Submitting Order Placement Form...')
         if not self.dont_submit:
             frm_btn_submit.click()
