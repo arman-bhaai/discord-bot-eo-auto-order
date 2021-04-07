@@ -15,11 +15,7 @@ from datetime import datetime
 import os
 import sys
 from dotenv import load_dotenv
-
-# from time import time, time.sleep
-
-
-
+import requests
 
 
 class ConsoleApp:
@@ -27,8 +23,8 @@ class ConsoleApp:
         self.evt_loop = evt_loop
         self.channel = channel
         
-        self.bot_log('Running selenium background task...')
-        self.bot_log('Loading user information...')
+        ###self.bot_log('Running selenium background task...')
+        ###self.bot_log('Loading user information...')
         with open('usr_creds.json', 'r') as f:
             usr_creds = json.load(f)
             self.full_name = usr_creds['full_name']
@@ -41,18 +37,104 @@ class ConsoleApp:
             self.city = usr_creds['city']
             self.color = usr_creds['color'] # keep it blank if product doesn't have a color
             self.product_link = usr_creds['product_link']
-            self.bike_name = usr_creds['bike_name']
+            self.product_name = usr_creds['product_name']
+            self.product_brand = usr_creds['product_brand']
+            self.dont_submit = usr_creds['dont_submit']
        
-
+        self.bot_log(f'Working for user {self.usrnm}')
         self.bot_log('Running webdriver...')
         op = webdriver.ChromeOptions()
         op.binary_location = os.environ.get('GOOGLE_CHROME_BIN')
-        op.add_argument('--headless')
+        # op.add_argument('--headless')
         op.add_argument('--no-sandbox')
         op.add_argument('--disable-dev-sh-usage')
         self.driver = webdriver.Chrome(executable_path=os.environ.get('CHROMEDRIVER_PATH'), chrome_options=op)
-    
+        
         self.login()
+
+        self.driver.get(self.product_link)
+        time.sleep(3)
+        product_name_dynamic = self.driver.find_element_by_xpath('//div[@class="title"]/h1')
+
+        # load products db
+        self.check_stock_from_db(
+            self.product_name,
+            product_name_dynamic.text,
+            self.product_brand
+        )
+
+        self.bot_log('Checking if user is logged in...')
+        is_logged_in = self.get_login_state()
+
+        if is_logged_in:
+            self.bot_log('User is logged in...')
+            self.order_now()
+            sys.exit()
+        else:
+            self.bot_log('User is not logged in...')
+            self.login()
+            self.driver.get(self.product_link)
+            self.order_now()
+            sys.exit()
+        
+
+    
+    def get_login_state(self):
+        self.driver.get(self.product_link)
+        time.sleep(2)
+        login_state = self.driver.find_element_by_xpath('//div[@class="header_main-cart"]//li[@class="last_li"]/a')
+        if not login_state.text.lower() == 'sign in':
+            return True
+        else:
+            return False
+
+
+    def check_stock_from_db(self, product_name, product_name_dynamic, product_brand):
+        self.bot_log('Checking product availability')
+        self.start_time = datetime.now()
+
+        self.refresh_count = 0
+        product_idx = None
+        while True:
+            product_list = self.get_product_db(product_brand)
+
+            if product_idx is None:
+                product_idx = self.get_product_idx(product_name_dynamic, product_list)
+            else:
+                if product_list[product_idx]['name'] == product_name_dynamic:
+                    if product_list[product_idx]['stock'] > 0:
+                        self.bot_log(self.show_stats(self.start_time, 'Product is Available!'))
+                        self.bot_log(f"Product stocks : {product_list[product_idx]['stock']}")
+                        break
+                    else:
+                        self.bot_log(self.show_stats(self.start_time, 'Product out of Stock!'))
+                        time.sleep(3)
+                else:
+                    self.bot_log('Dynamic Product name does not  match with index...\nExiting Program...')
+                    sys.exit()
+            self.refresh_count += 1
+
+    
+    def get_product_db(self, product_brand):
+        print('fetching product page...')
+        time.sleep(2)
+        url = f'https://eorange.shop/get-search-product?search={product_brand}&page=1&filter=%7B%22category%22:null,%22short_by%22:%22popularity%22,%22seller_by%22:[],%22brand_by%22:[],%22price%22:%7B%22min%22:0,%22max%22:0%7D%7D'
+        print(f'status code : {requests.get(url).status_code}')
+        api_dict = requests.get(url).json()
+        product_list = api_dict['data']['products']['data']
+        return product_list
+
+    def get_product_idx(self, product_name, prod_list):
+        for idx, product in enumerate(prod_list):
+            if product_name.replace(' ','').lower() in product['name'].replace(' ','').lower():
+                self.bot_log('product name match found')
+                self.bot_log(f'Product Name : {product["name"]}')
+                self.bot_log(f'product index: {idx}')
+                return idx
+        self.bot_log('Product name does not match... Exiting program...')
+        sys.exit()
+        
+
 
     def bot_log(self, msg):
         # await channel.send('Test') # We can't do this because of the above comment
@@ -75,33 +157,7 @@ class ConsoleApp:
         self.bot_log('Submitting user login info')
         sel_btn_login.click()
         self.bot_log('Login successful')
-        self.check_availability()
-
-    def check_availability(self):
-        self.bot_log('Checking product availability')
-        self.refresh_count = 0
-        # start_time = time()
-        start_time = datetime.now()
-        self.driver.get(self.product_link)
-        while True:
-            try:
-                self.driver.find_element_by_xpath('//span[contains(text(),"Add To Cart")]')
-            except:
-                
-                self.bot_log(self.show_stats(start_time, 'Product is not Available'))
-                self.refresh_count +=1
-                time.sleep(3)
-                self.driver.refresh()
-            else:
-                self.bot_log(self.show_stats(start_time, 'Product is Available!'))
-                self.order_now()
-                
-                while True:
-                    self.bot_log('Order Placement Successful!!!')
-                    sys.exit()
-                    time.sleep(3)
-                    # winsound.PlaySound('psiren.wav',winsound.SND_FILENAME)
-                    #winsound.Beep(100, 1000) 
+        # self.check_availability()
 
 
     def show_stats(self, start_time, msg):
@@ -114,7 +170,7 @@ class ConsoleApp:
         sec = int(seconds)
 
         retn = f"""-----------------------------------------------------
---> Product >> {self.bike_name}
+--> Product >> {self.product_name}
 --> Time elapsed >> {hr} hours {mnt} minutes {sec} seconds.
 --> Refreshed    >> {self.refresh_count} times
 --> {msg}\n\n
@@ -158,9 +214,12 @@ class ConsoleApp:
         frm_agree.click()
         # time.sleep(1)
         self.bot_log('Submitting Order Placement Form...')
-        frm_btn_submit.click()
-        start_time = datetime.now()
-        self.bot_log(self.show_stats(start_time, 'Order has been Placed Successfully!!!'))
+        if not self.dont_submit:
+            frm_btn_submit.click()
+        else:
+            self.bot_log('Testing Mode... Submission Cancelled...')
+        self.bot_log(self.show_stats(self.start_time, 'Order has been Placed Successfully!!!'))
+
 
 def blocker_background_task(evt_loop, channel):
     ConsoleApp(evt_loop, channel)

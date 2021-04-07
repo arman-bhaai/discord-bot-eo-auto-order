@@ -9,5 +9,6 @@
     "city": "",
     "color": "",
     "product_link": "",
-    "bike_name": ""
+    "bike_name": "",
+    "dont_submit": true
 }
